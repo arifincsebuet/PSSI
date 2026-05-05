@@ -20,7 +20,6 @@ The core logic is implemented inside the `pssi/` Python package:
 * `pssi/utils.py`: Low-level cryptographic helpers, murmur hash wrappers, and utilities.
 
 Additional project files include:
-* `paper.tex`: The full ACM LaTeX source code for the publication.
 * `pssi_plot_results.py`: The official script to generate the 9 publication-quality empirical results figures for the paper.
 
 ## Installation
@@ -56,14 +55,6 @@ Run `pssi_plot_results.py` to generate the 9 evaluation graphs and charts demons
 
 ```bash
 python pssi_plot_results.py
-```
-*(Graphs will be exported to the `Pics/` directory to match the LaTeX references)*
-
-### 4. Compile the Paper
-If you have a TeX distribution (e.g., MiKTeX or TeX Live) installed, you can compile the official publication:
-
-```bash
-pdflatex paper.tex
 ```
 
 ## Citation
