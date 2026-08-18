@@ -1,126 +1,127 @@
-import sys
+"""
+Verification of the analytically-checkable claims in the paper.
+
+This script reproduces the quantities that follow from the PSSI mechanism
+itself. It deliberately does NOT reproduce the cross-system comparison table
+(Elasticsearch / Lucene / ANCE / OXT latency, memory and payload), which
+requires those external systems and the BEIR corpora; see README.
+
+Checks
+  1. Per-bit LDP parameter eps_0 = ln((1-eta)/eta)                 (Lemma 1)
+  2. Bit-flip noise -> bit occupancy and k-hash FPR                (Sec. V-A)
+  3. Sparse index size vs. the paper's 87 MB FiQA-2018 figure      (Sec. VII-C)
+  4. Leakage L_A vs. eta, Algorithm 1 Sub-procedure A              (Sec. VI)
+  5. Composite-weighting ablation over lambda                      (Sec. VII-D3)
+"""
+
 import json
-import time
-import numpy as np
+import math
+import random
+import sys
 import os
 
-# Ensure import paths
-sys.path.append(os.path.dirname(__file__))
+import numpy as np
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from pssi.client import PSSIClient
 from pssi.cloud import PSSICloud
+from pssi.attack import build_attack_dictionary, measure_leakage
+from pssi.utils import bloom_false_positive_rate, composed_epsilon, epsilon0_ldp
+
+SEED = 42
+
+
+def check(label, got, expected, tol, unit=""):
+    ok = abs(got - expected) <= tol
+    print(f"  [{'OK ' if ok else 'DIFF'}] {label}: {got:.4g}{unit} "
+          f"(paper {expected:g}{unit})")
+    return ok
+
 
 def main():
-    print("=============================================")
-    print(" PSSI Experimental Verification Script")
-    print("=============================================\n")
-    
-    # Using 128-bit bloom filter and 128-dim embeddings
-    client = PSSIClient(n_gram_sizes=[3], bloom_size=128, num_hashes=3, embed_dim=128, proj_dim=64)
-    cloud = PSSICloud(proj_dim=64)
+    print("=" * 64)
+    print(" PSSI Verification -- analytically checkable paper claims")
+    print("=" * 64)
 
-    # Mock Data
-    doc_text = "Samsung develops smart IoT devices for the modern home"
-    doc_embed = client.get_dummy_embedding(doc_text)
-    encoded_doc = client.encode_document(doc_text, doc_embed)
-    cloud.store_document("doc_samsung", encoded_doc)
-    
-    # Decoys
-    decoys = [
-        "Apples and oranges are tasty fruits in the summer",
-        "A fast car zooms down the busy highway rapidly",
-        "The quick brown fox jumps over the lazy dog"
-    ]
-    for i, dec in enumerate(decoys):
-        cloud.store_document(f"doc_decoy_{i}", client.encode_document(dec))
+    # ---- 1. LDP parameter ------------------------------------------------
+    print("\n--- 1. Per-bit local DP guarantee (Lemma 1, Corollary 3) ---")
+    check("eps_0 at eta=0.05", epsilon0_ldp(0.05), 2.94, 0.01)
+    print("     eps_0 across the swept range:")
+    for eta in (0.02, 0.05, 0.10, 0.15, 0.20, 0.30):
+        print(f"       eta={eta:<5} eps_0={epsilon0_ldp(eta):.2f}")
+    print(f"     conservative composed bound s*eps_0 at s=312: "
+          f"{composed_epsilon(312, 0.05):.0f} (paper 918)")
 
-    print("--- 1. Memory Usage Verification ---")
-    # Baseline Proxy: raw text + 128-dim dense array (32-bit floats)
-    # text memory roughly len(text) bytes, dense array 128 * 4 bytes
-    baseline_bytes = len(doc_text) + (128 * 4) 
-    
-    # PSSI Sparse Bytes: list of ints for BF + list of ints for SB. Assume 4 bytes per int for sparse coords
-    pssi_bytes = (len(encoded_doc['bf_bits']) * 4) + (len(encoded_doc['sb_bits']) * 4)
-    
-    reduction = 100 * (baseline_bytes - pssi_bytes) / float(baseline_bytes)
-    print(f"Baseline Simulated Memory (Raw Text + Dense Vectors): {baseline_bytes} bytes")
-    print(f"PSSI Simulated Sparse Memory: {pssi_bytes} bytes")
-    print(f"Memory Reduction: {reduction:.2f}% (Matches expectations of ~80%)\n")
+    # ---- 2. Noise, occupancy, FPR ---------------------------------------
+    print("\n--- 2. Bit-flip noise, occupancy and FPR (Section V-A) ---")
+    client = PSSIClient(seed=SEED, embedding_model=None)
+    text = ("privacy preserving semantic search over encrypted cloud document "
+            "collections using bloom filters")
+    clean = client.encode_bloom_filter(client.extract_ngrams(text))
+    noisy = client.encode_document(text)["bf_bits"]
+    p_clean, p_noisy = len(clean) / 1024, len(noisy) / 1024
+    print(f"     distinct 3-grams {len(client.extract_ngrams(text))}, "
+          f"clean {len(clean)} bits -> noisy {len(noisy)} bits")
+    print(f"     occupancy {p_clean:.3f} -> {p_noisy:.3f}")
+    # analytic prediction p' = p(1-eta) + (1-p)eta
+    pred = p_clean * (1 - client.eta) + (1 - p_clean) * client.eta
+    check("post-noise occupancy vs analytic", p_noisy, pred, 0.02)
+    check("k-hash FPR", bloom_false_positive_rate(len(noisy)) * 100, 0.86, 0.6, "%")
 
-    print("--- 2. Network Cost Verification ---")
-    baseline_payload = {
-        "text": doc_text,
-        "vector": doc_embed.tolist()
-    }
-    pssi_payload = encoded_doc
-    
-    base_net_size = len(json.dumps(baseline_payload))
-    pssi_net_size = len(json.dumps(pssi_payload))
-    net_reduction = 100 * (base_net_size - pssi_net_size) / float(base_net_size)
-    print(f"Baseline JSON Payload Size: {base_net_size} bytes")
-    print(f"PSSI JSON Payload Size: {pssi_net_size} bytes")
-    print(f"Network Reduction: {net_reduction:.2f}% (Matches expectation of ~65%)\n")
+    # ---- 3. Index size ---------------------------------------------------
+    print("\n--- 3. Sparse index size (Section VII-C: ~87 MB on FiQA-2018) ---")
+    n_docs, bf_bits, sb_bits, int_bytes = 57638, 312, 64, 4
+    mb = (bf_bits + sb_bits) * int_bytes * n_docs / 1e6
+    check("FiQA-2018 index size", mb, 87, 1.5, " MB")
 
-    print("--- 3. Component Latency Breakdown Verification ---")
-    query_text = "smart home devices"
-    query_embed = client.get_dummy_embedding(query_text)
-    encoded_query = client.encode_query(query_text, query_embed)
-    
-    bf_q = encoded_query['bf_bits']
-    sb_q = encoded_query['sb_bits']
-    
-    iterations = 20000
-    
-    # time p_substr
-    start_substr = time.perf_counter()
-    for _ in range(iterations):
-        for doc_id, doc_data in cloud.index.items():
-            cloud.calculate_p_substr(bf_q, doc_data['bf_bits'])
-    time_substr = time.perf_counter() - start_substr
-    
-    # time p_semantic
-    start_sem = time.perf_counter()
-    for _ in range(iterations):
-        for doc_id, doc_data in cloud.index.items():
-            cloud.calculate_p_semantic(sb_q, doc_data['sb_bits'])
-    time_sem = time.perf_counter() - start_sem
-    
-    total_time = time_substr + time_sem
-    pct_substr = (time_substr / total_time) * 100
-    pct_sem = (time_sem / total_time) * 100
-    
-    print(f"Simulated {iterations} document matches.")
-    print(f"Bloom Matching Raw Computation: {pct_substr:.1f}%")
-    print(f"Semantic Matching Raw Computation: {pct_sem:.1f}%")
-    # In paper: Firestore Fetch is the remaining ~25%.
-    # Proportionally, Bloom = (PCT_S * 0.75), Sem = (PCT_SEM * 0.75) for comparison.
-    adj_substr = pct_substr * 0.75
-    adj_sem = pct_sem * 0.75
-    print(f"Adjusted (assuming 25% DB fetch time): Bloom ~{adj_substr:.1f}%, Semantic ~{adj_sem:.1f}%")
-    print(f"-> Verifies the component breakdown claimed in Section IX.I.\n")
+    # ---- 4. Leakage vs eta ----------------------------------------------
+    print("\n--- 4. Leakage L_A vs eta (Algorithm 1, Sub-procedure A) ---")
+    random.seed(SEED)
+    vocab = ["privacy", "semantic", "search", "encrypted", "cloud", "document",
+             "bloom", "filter", "retrieval", "index", "noise", "hashing",
+             "vector", "query", "server", "token", "corpus", "medical",
+             "finance", "science", "network", "payload", "latency", "memory",
+             "attack", "adversary", "threshold", "projection", "embedding",
+             "similarity"]
+    docs = [" ".join(random.sample(vocab, 5)) for _ in range(40)]
+    truth = [d.split() for d in docs]
+    adict = build_attack_dictionary(vocab)
+    print(f"     |V|={len(vocab)}, {len(docs)} held-out docs, threshold=1.0")
+    print(f"     {'eta':<7}{'L_A':<9}{'precision':<12}{'avg BF bits'}")
+    prev = 1.1
+    monotone = True
+    for eta in (0.0, 0.02, 0.05, 0.10, 0.20, 0.30):
+        cl = PSSIClient(eta=eta, seed=SEED, embedding_model=None)
+        enc = [cl.encode_document(d) for d in docs]
+        r = measure_leakage(enc, truth, adict)
+        bits = sum(len(e["bf_bits"]) for e in enc) / len(enc)
+        monotone &= r["leakage"] <= prev + 1e-9
+        prev = r["leakage"]
+        print(f"     {eta:<7}{r['leakage']:<9.3f}{r['precision']:<12.3f}{bits:6.1f}")
+    print(f"  [{'OK ' if monotone else 'DIFF'}] L_A decreases monotonically in eta")
+    print("     NOTE: absolute values are not the paper's 0.35 -> 0.08. Those use")
+    print("     500 BEIR documents against a 50,000-token Wikipedia vocabulary;")
+    print("     this is a self-contained smoke test of the same mechanism.")
 
-    print("--- 4. Ablation Study: Semantic Layer Verification ---")
-    # Semantic query simulation
-    print("Query: 'vehicle mechanism' (Targeting document: 'A fast car zooms down the busy highway rapidly')")
-    
-    ablation_query = "vehicle"
-    # To force 'vehicle' to be semantically similar to 'car', we use the decoy's embedding hash logic
-    ablation_embed_sim = client.get_dummy_embedding(decoys[1])
-    encoded_ablation = client.encode_query(ablation_query, ablation_embed_sim)
-    
-    # With Semantic Layer (alpha=0.5, beta=0.5)
-    res_with_sem = cloud.search(encoded_ablation, alpha=0.5, beta=0.5, top_k=2)
-    
-    # Without Semantic Layer (alpha=1.0, beta=0.0) -> Bloom filter Substring only
-    res_without_sem = cloud.search(encoded_ablation, alpha=1.0, beta=0.0, top_k=2)
-    
-    print("\nResults WITH Semantic Layer:")
-    for r in res_with_sem: print(f"  {r['doc_id']}: {r['score']:.4f}")
-        
-    print("\nResults WITHOUT Semantic Layer:")
-    for r in res_without_sem: print(f"  {r['doc_id']}: {r['score']:.4f}")
-    
-    print("\n-> Insight: Without the Semantic Layer, the architecture relies purely on exact/substring Bloom matches. Since 'vehicle' has no n-gram overlap with 'car', the Precision & Recall drop drastically as shown in Section IX.H.")
+    # ---- 5. Lambda ablation ---------------------------------------------
+    print("\n--- 5. Composite weighting lambda (Section VII-D3) ---")
+    cl = PSSIClient(eta=0.05, seed=SEED, embedding_model=None)
+    cloud = PSSICloud(proj_dim=cl.proj_dim)
+    for i, d in enumerate(docs[:20]):
+        cloud.store_document(f"doc{i}", cl.encode_document(d))
+    q = cl.encode_query(docs[0])
+    print("     lambda   top-1        score   (lambda=1 substring-only, 0 semantic-only)")
+    for lam in (0.0, 0.25, 0.5, 0.75, 1.0):
+        top = cloud.search(q, lam=lam, top_k=1)[0]
+        print(f"     {lam:<8} {top['doc_id']:<12} {top['score']:.4f}")
 
-if __name__ == '__main__':
+    print("\n" + "=" * 64)
+    print(" Cross-system results (Table I, Figs. 1-5, 9) require Elasticsearch,")
+    print(" Lucene/Pyserini, ANCE/FAISS, an OXT implementation and the BEIR")
+    print(" corpora. They are not reproducible from this repository alone.")
+    print("=" * 64)
+
+
+if __name__ == "__main__":
     main()

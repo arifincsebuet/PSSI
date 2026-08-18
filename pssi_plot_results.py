@@ -1,3 +1,24 @@
+"""
+PSSI Experimental Results — Publication-Quality Figures
+========================================================
+Generates all 9 figures for Section 7 of the PSSI paper.
+
+Usage:
+    pip install matplotlib numpy
+    python pssi_plot_results.py
+
+Output (saved to ./figures/):
+    fig1_latency_comparison.png
+    fig2_memory_comparison.png
+    fig3_network_payload.png
+    fig4_accuracy_per_dataset.png
+    fig5_privacy_leakage.png
+    fig6_eta_sweep.png
+    fig7_bloom_size_ablation.png
+    fig8_lambda_ablation.png
+    fig9_scalability.png
+"""
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,7 +27,7 @@ import matplotlib.ticker as ticker
 from matplotlib.gridspec import GridSpec
 
 # ── Output directory ─────────────────────────────────────────────────────────
-os.makedirs("Pics", exist_ok=True)
+os.makedirs("figures", exist_ok=True)
 
 # ── Global style ─────────────────────────────────────────────────────────────
 plt.rcParams.update({
@@ -72,7 +93,7 @@ def annotate_bars(ax, rects, fmt="{:.0f}", color="black", offset=3):
 
 
 def save(name):
-    path = f"Pics/{name}.png"
+    path = f"figures/{name}.png"
     plt.savefig(path)
     plt.close()
     print(f"  saved → {path}")
@@ -83,7 +104,7 @@ def save(name):
 # ═══════════════════════════════════════════════════════════════════════════════
 def fig1_latency():
     systems = ["Elasticsearch", "Lucene", "Dense\n(ANCE)", "Plain BF\n(η=0)", "PSSI\n(ours)"]
-    avg = [312, 348, 407, 218, 187]
+    avg = [334, 348, 407, 218, 187]
     p95 = [578, 641, 714, 391, 334]
     p99 = [892, 974, 1063, 601, 498]
 
@@ -106,7 +127,7 @@ def fig1_latency():
                     str(val), ha="center", va="bottom", fontsize=8)
 
     # Reduction annotation on PSSI avg bar
-    ax.annotate("−40%\nvs ES", xy=(x[-1] - width, avg[-1]),
+    ax.annotate("−44%\nvs ES", xy=(x[-1] - width, avg[-1]),
                 xytext=(x[-1] - width - 0.55, avg[-1] + 120),
                 fontsize=8.5, color=C["pssi"], fontweight="bold",
                 arrowprops=dict(arrowstyle="->", color=C["pssi"], lw=1.2))
@@ -139,7 +160,7 @@ def fig1_latency():
 def fig2_memory():
     systems = ["Elasticsearch\n(BM25)", "Lucene\n(BM25)", "Dense\n(ANCE)",
                "Plain BF\n(η=0)", "PSSI\n(ours)"]
-    memory  = [8.2, 7.5, 11.6, 2.1, 1.5]
+    memory  = [2.63, 7.5, 11.6, 2.1, 1.50]
     colors  = [C["es"], C["lucene"], C["dense"], C["bf"], C["pssi"]]
 
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -148,7 +169,7 @@ def fig2_memory():
 
     for bar, val in zip(bars, memory):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.12,
-                f"{val} GB", ha="center", va="bottom", fontsize=10, fontweight="bold")
+                f"{val:g} GB", ha="center", va="bottom", fontsize=10, fontweight="bold")
 
     # Percentage labels relative to ES
     for bar, val in zip(bars, memory):
@@ -162,7 +183,7 @@ def fig2_memory():
 
     ax.set_ylabel("Peak Server Memory (GB)")
     ax.set_title("Fig 2.  Server-Side Memory Consumption")
-    ax.set_ylim(0, 14)
+    ax.set_ylim(0, 13)
     ax.axhline(memory[0], linestyle="--", color=C["es"], alpha=0.4, linewidth=1)
     ax.text(4.4, memory[0] + 0.2, "ES baseline", fontsize=8, color=C["es"])
 
@@ -365,7 +386,7 @@ def fig6_eta_sweep():
 def fig7_bloom_size():
     m_vals   = [512, 1024, 2048, 4096]
     f1       = [0.431, 0.469, 0.481, 0.484]
-    fpr      = [12.1,  6.3,   3.1,   1.6]    # false positive rate (%)
+    fpr      = [5.64,  0.86,  0.12,  0.02]   # k-hash FPR (%) = occupancy^k, k=4
     payload  = [14.2,  11.2,  18.7,  34.1]   # KB
     memory   = [1.2,   1.5,   2.9,   5.8]    # GB
 
@@ -395,15 +416,15 @@ def fig7_bloom_size():
     # Panel B: False positive rate vs m
     ax = axes[1]
     ax.plot(x, fpr, "o-", color=C["red"], linewidth=2.2, markersize=8)
-    ax.fill_between(x, fpr, alpha=0.12, color=C["red"])
+    ax.set_yscale("log")
     for xi, val in zip(x, fpr):
-        ax.text(xi, val + 0.4, f"{val}%", ha="center", va="bottom", fontsize=9)
+        ax.text(xi, val * 1.35, f"{val:g}%", ha="center", va="bottom", fontsize=9)
     ax.axvline(1, linestyle=":", color="#888888", linewidth=1.2)
     ax.set_xticks(x); ax.set_xticklabels(x_lbl)
     ax.set_xlabel("Bloom filter size m (bits)")
-    ax.set_ylabel("False Positive Rate (%)")
+    ax.set_ylabel("False Positive Rate (%, log scale)")
     ax.set_title("B.  Bloom Filter False Positive Rate")
-    ax.set_ylim(0, 16)
+    ax.set_ylim(0.008, 30)
 
     # Panel C: Payload vs m (dual bar: payload + memory)
     ax   = axes[2]
@@ -560,5 +581,5 @@ if __name__ == "__main__":
     fig7_bloom_size()
     fig8_lambda()
     fig9_scalability()
-    print(f"\nAll 9 figures saved to ./Pics/")
+    print(f"\nAll 9 figures saved to ./figures/")
     print("Replace hardcoded values with your measured results before submission.")

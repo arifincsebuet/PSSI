@@ -1,3 +1,8 @@
 numpy==1.26.4
 mmh3==4.1.0
 matplotlib==3.8.3
+
+# Optional: real all-MiniLM-L6-v2 embeddings as used in the paper.
+# Without it, PSSIClient falls back to a deterministic pseudo-embedding that
+# carries no semantic signal (see README, "Scope and reproducibility").
+# sentence-transformers==2.7.0
