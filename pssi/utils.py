@@ -4,9 +4,9 @@ bit-flip (randomized response) noise mechanism.
 
 Paper cross-reference
 ---------------------
-Eq. (5)  Bloom filter insertion        -> generate_bloom_hashes
-Eq. (6)  Random projection sign hash   -> get_random_projection_matrix
-Eq. (7)  Bit-flip noise B~[i]          -> apply_bitflip_noise
+Eq. (3)  Bloom filter insertion        -> generate_bloom_hashes
+Eq. (4)  Random projection sign hash   -> get_random_projection_matrix
+Eq. (5)  Bit-flip noise B~[i]          -> apply_bitflip_noise
 Lemma 1  eps_0 = ln((1-eta)/eta)       -> epsilon0_ldp
 """
 
@@ -15,7 +15,7 @@ import math
 import mmh3
 import numpy as np
 
-# Paper default configuration (Section V-D)
+# Paper default configuration (Section IV-D, "Default parameters")
 DEFAULT_BLOOM_SIZE = 1024      # m
 DEFAULT_NUM_HASHES = 4         # k
 DEFAULT_NGRAM_SIZE = 3         # n
@@ -27,7 +27,7 @@ DEFAULT_LAMBDA = 0.5           # lambda (composite weighting)
 
 def generate_bloom_hashes(text, num_hashes=DEFAULT_NUM_HASHES,
                           max_size=DEFAULT_BLOOM_SIZE):
-    """Return the set of Bloom positions for one n-gram (Eq. 5).
+    """Return the set of Bloom positions for one n-gram (Eq. 3).
 
     Positions are returned as a set: setting the same bit twice is idempotent,
     so a hash collision simply yields fewer than `num_hashes` distinct bits.
@@ -41,7 +41,7 @@ def generate_bloom_hashes(text, num_hashes=DEFAULT_NUM_HASHES,
 
 def get_random_projection_matrix(input_dim=DEFAULT_EMBED_DIM,
                                  output_dim=DEFAULT_PROJ_DIM, seed=42):
-    """Fixed Gaussian projection matrix W (Eq. 6).
+    """Fixed Gaussian projection matrix W (Eq. 4).
 
     Entries are drawn from N(0, 1) per the Johnson-Lindenstrauss construction.
     The matrix is deterministic given `seed` and is shared by client and
@@ -52,7 +52,7 @@ def get_random_projection_matrix(input_dim=DEFAULT_EMBED_DIM,
 
 
 def apply_bitflip_noise(active_indices, vector_size, eta=DEFAULT_ETA, rng=None):
-    """Randomized response over a *dense* bit vector, returned sparsely (Eq. 7).
+    """Randomized response over a *dense* bit vector, returned sparsely (Eq. 5).
 
     Every one of the `vector_size` positions -- not merely the active ones --
     is independently flipped with probability `eta`. This matters: flipping

@@ -8,10 +8,10 @@ requires those external systems and the BEIR corpora; see README.
 
 Checks
   1. Per-bit LDP parameter eps_0 = ln((1-eta)/eta)                 (Lemma 1)
-  2. Bit-flip noise -> bit occupancy and k-hash FPR                (Sec. V-A)
-  3. Sparse index size vs. the paper's 87 MB FiQA-2018 figure      (Sec. VII-C)
-  4. Leakage L_A vs. eta, Algorithm 1 Sub-procedure A              (Sec. VI)
-  5. Composite-weighting ablation over lambda                      (Sec. VII-D3)
+  2. Bit-flip noise -> bit occupancy and k-hash FPR                (Sec. IV-D)
+  3. Sparse index size vs. the paper's 87 MB FiQA-2018 figure      (Sec. VI-B)
+  4. Leakage L_A vs. eta, Algorithm 1 Sub-procedure A              (Sec. V)
+  5. Composite-weighting ablation over lambda                      (Sec. VI-C)
 """
 
 import json
@@ -54,7 +54,7 @@ def main():
           f"{composed_epsilon(312, 0.05):.0f} (paper 918)")
 
     # ---- 2. Noise, occupancy, FPR ---------------------------------------
-    print("\n--- 2. Bit-flip noise, occupancy and FPR (Section V-A) ---")
+    print("\n--- 2. Bit-flip noise, occupancy and FPR (Section IV-D) ---")
     client = PSSIClient(seed=SEED, embedding_model=None)
     text = ("privacy preserving semantic search over encrypted cloud document "
             "collections using bloom filters")
@@ -70,7 +70,7 @@ def main():
     check("k-hash FPR", bloom_false_positive_rate(len(noisy)) * 100, 0.86, 0.6, "%")
 
     # ---- 3. Index size ---------------------------------------------------
-    print("\n--- 3. Sparse index size (Section VII-C: ~87 MB on FiQA-2018) ---")
+    print("\n--- 3. Sparse index size (Section VI-B: ~87 MB on FiQA-2018) ---")
     n_docs, bf_bits, sb_bits, int_bytes = 57638, 312, 64, 4
     mb = (bf_bits + sb_bits) * int_bytes * n_docs / 1e6
     check("FiQA-2018 index size", mb, 87, 1.5, " MB")
@@ -105,7 +105,7 @@ def main():
     print("     this is a self-contained smoke test of the same mechanism.")
 
     # ---- 5. Lambda ablation ---------------------------------------------
-    print("\n--- 5. Composite weighting lambda (Section VII-D3) ---")
+    print("\n--- 5. Composite weighting lambda (Section VI-C) ---")
     cl = PSSIClient(eta=0.05, seed=SEED, embedding_model=None)
     cloud = PSSICloud(proj_dim=cl.proj_dim)
     for i, d in enumerate(docs[:20]):
@@ -117,7 +117,7 @@ def main():
         print(f"     {lam:<8} {top['doc_id']:<12} {top['score']:.4f}")
 
     print("\n" + "=" * 64)
-    print(" Cross-system results (Table I, Figs. 1-5, 9) require Elasticsearch,")
+    print(" Cross-system results (Table I, Figs. 2 and 4) require Elasticsearch,")
     print(" Lucene/Pyserini, ANCE/FAISS, an OXT implementation and the BEIR")
     print(" corpora. They are not reproducible from this repository alone.")
     print("=" * 64)
