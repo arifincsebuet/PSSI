@@ -1,5 +1,5 @@
 """
-Trusted-client side of PSSI (paper Section IV-B).
+Trusted-client side of PSSI (paper Section IV-B, Fig. 1).
 
 Everything touching plaintext happens here: normalisation, n-gram extraction,
 embedding, random projection, and bit-flip noise. Only sparse integer arrays
@@ -14,14 +14,14 @@ from pssi.utils import (
     epsilon0_ldp, generate_bloom_hashes, get_random_projection_matrix,
 )
 
-# Model named in the paper's experimental setup (Section VII-A).
+# Model named in the paper's experimental setup (Section VI-A).
 SENTENCE_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 class PSSIClient:
     """Client-side encoder.
 
-    Defaults are the paper's configuration (Section V-D):
+    Defaults are the paper's configuration (Section IV-D):
         m = 1024, k = 4, n = 3, b = 128, eta = 0.05.
 
     Parameters
@@ -77,7 +77,7 @@ class PSSIClient:
     # ------------------------------------------------------------- encoding
 
     def extract_ngrams(self, text):
-        """Normalise and decompose into overlapping character n-grams (Eq. 4)."""
+        """Normalise and decompose into overlapping character n-grams G(d) (Sec. IV-B)."""
         text = "".join(ch for ch in text.lower() if ch.isalnum())
         ngrams = set()
         for n in self.n_gram_sizes:
@@ -86,7 +86,7 @@ class PSSIClient:
         return ngrams
 
     def encode_bloom_filter(self, ngrams):
-        """Clean (noise-free) Bloom support for a set of n-grams (Eq. 5)."""
+        """Clean (noise-free) Bloom support for a set of n-grams (Eq. 3)."""
         bf_indices = set()
         for g in ngrams:
             bf_indices.update(
@@ -116,12 +116,12 @@ class PSSIClient:
         return np.random.default_rng(seed).standard_normal(self.embed_dim)
 
     def binarize_projection(self, vector):
-        """Clean sign-of-projection semantic hash support (Eq. 6)."""
+        """Clean sign-of-projection semantic hash support (Eq. 4)."""
         z = np.dot(self.R, np.asarray(vector, dtype=float))
         return set(np.flatnonzero(z > 0).tolist())
 
     def encode_document(self, text, embedding=None, apply_noise=True):
-        """Full client pipeline -> sparse noisy index entry I_d (Eq. 8).
+        """Full client pipeline -> sparse noisy index entry I_d (Eq. 5 + Sec. IV-B).
 
         Returns active bit indices of the *noisy* representations; the clean
         supports never leave this method.

@@ -1,6 +1,6 @@
 """
 PSSI end-to-end demonstration at the paper's default configuration
-(m=1024, k=4, n=3, b=128, eta=0.05, lambda=0.5; Section V-D).
+(m=1024, k=4, n=3, b=128, eta=0.05, lambda=0.5; Section IV-D).
 
 Shows: client-side encoding with bit-flip noise -> sparse upload -> cloud-side
 bitwise matching -> ranked results, with the server never seeing plaintext.
@@ -39,7 +39,7 @@ def main():
     client = PSSIClient(seed=42, embedding_model=None)
     cloud = PSSICloud(proj_dim=client.proj_dim)
 
-    print(f"\nConfiguration (paper Section V-D):")
+    print(f"\nConfiguration (paper Section IV-D):")
     print(f"  m={client.bloom_size}  k={client.num_hashes}  n={client.n_gram_sizes[0]}"
           f"  b={client.proj_dim}  eta={client.eta}  lambda=0.5")
     print(f"  per-bit LDP guarantee  eps_0 = ln((1-eta)/eta) = {client.epsilon0():.3f}")
@@ -82,7 +82,7 @@ def main():
     results = cloud.search(encoded_q, lam=0.5)
 
     print("\n" + "=" * 62)
-    print(" Ranking (Score = lambda*P_substr + (1-lambda)*P_sem, Eq. 10)")
+    print(" Ranking (Score = lambda*P_substr + (1-lambda)*P_sem, Eq. 7)")
     print("=" * 62)
     for rank, res in enumerate(results, 1):
         print(f"Rank {rank}: {res['doc_id']}")

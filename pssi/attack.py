@@ -1,5 +1,5 @@
 """
-Algorithm 1, Sub-procedure A: token-reconstruction attack (paper Section VI).
+Algorithm 1, Sub-procedure A: token-reconstruction attack (paper Section V).
 
 Threat model (Definition 1): an honest-but-curious server holding the stored
 index and the Bloom hash functions {h_1..h_k}, but not the projection matrix,

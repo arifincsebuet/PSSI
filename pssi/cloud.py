@@ -1,5 +1,5 @@
 """
-Untrusted-cloud side of PSSI (paper Section IV-C).
+Untrusted-cloud side of PSSI (paper Section IV-C, Fig. 1).
 
 The server sees only sparse integer arrays of noisy active bit indices. It
 performs set intersection and Hamming distance -- integer arithmetic only --
@@ -15,7 +15,7 @@ class PSSICloud:
     Parameters
     ----------
     proj_dim : int
-        Semantic hash length b; the Hamming-similarity denominator (Eq. 9).
+        Semantic hash length b; the Hamming-similarity denominator (Eq. 6).
     """
 
     def __init__(self, proj_dim=DEFAULT_PROJ_DIM):
@@ -27,14 +27,14 @@ class PSSICloud:
         self.index[doc_id] = index_data
 
     def calculate_p_substr(self, bf_q, bf_d):
-        """Bloom overlap score (Eq. 8): |BF_d n BF_q| / |BF_q|."""
+        """Bloom overlap score P_substr (Eq. 6): |BF_d n BF_q| / |BF_q|."""
         set_q, set_d = set(bf_q), set(bf_d)
         if not set_q:
             return 0.0
         return len(set_q & set_d) / float(len(set_q))
 
     def calculate_p_semantic(self, sb_q, sb_d):
-        """Hamming similarity (Eq. 9): 1 - Ham(SB_d, SB_q) / b.
+        """Hamming similarity P_sem (Eq. 6): 1 - Ham(SB_d, SB_q) / b.
 
         For sparse supports the Hamming distance is the symmetric difference,
             Ham = |A| + |B| - 2|A n B|,
@@ -45,7 +45,7 @@ class PSSICloud:
         return max(0.0, 1.0 - hamming_dist / float(self.proj_dim))
 
     def search(self, query_data, lam=DEFAULT_LAMBDA, top_k=5):
-        """Rank by the composite score of Eq. (10):
+        """Rank by the composite score of Eq. (7):
 
             Score(d,q) = lam * P_substr + (1 - lam) * P_sem
 

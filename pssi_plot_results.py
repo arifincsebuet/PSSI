@@ -1,13 +1,17 @@
 """
 PSSI Experimental Results — Publication-Quality Figures
 ========================================================
-Generates all 9 figures for Section 7 of the PSSI paper.
+Generates the 9 plots used in Figs. 2-4 of the PSSI paper
+(IEEE BigData 2026, short paper). All values are the measured results
+reported in the paper (Table I and Section VI).
+
+Plots carry no "Fig N." titles: numbering and captions come from the paper.
 
 Usage:
     pip install matplotlib numpy
     python pssi_plot_results.py
 
-Output (saved to ./figures/):
+Output (saved to ./Pics/, the folder the LaTeX source includes from):
     fig1_latency_comparison.png
     fig2_memory_comparison.png
     fig3_network_payload.png
@@ -27,7 +31,8 @@ import matplotlib.ticker as ticker
 from matplotlib.gridspec import GridSpec
 
 # ── Output directory ─────────────────────────────────────────────────────────
-os.makedirs("figures", exist_ok=True)
+OUT_DIR = "Pics"
+os.makedirs(OUT_DIR, exist_ok=True)
 
 # ── Global style ─────────────────────────────────────────────────────────────
 plt.rcParams.update({
@@ -92,8 +97,18 @@ def annotate_bars(ax, rects, fmt="{:.0f}", color="black", offset=3):
         )
 
 
+def _label(ax, x, y, text, color, below, dx=0, dy=None):
+    """Value label offset in points from a marker, on a white backing."""
+    off = dy if dy is not None else (-15 if below else 9)
+    ax.annotate(text, xy=(x, y), xytext=(dx, off), textcoords="offset points",
+                ha="center", va="center", fontsize=9, color=color,
+                fontweight="bold", zorder=5,
+                bbox=dict(boxstyle="round,pad=0.12", fc="white", ec="none",
+                          alpha=0.85))
+
+
 def save(name):
-    path = f"figures/{name}.png"
+    path = os.path.join(OUT_DIR, f"{name}.png")
     plt.savefig(path)
     plt.close()
     print(f"  saved → {path}")
@@ -135,8 +150,7 @@ def fig1_latency():
     ax.set_xticks(x)
     ax.set_xticklabels(systems)
     ax.set_ylabel("Latency (ms)")
-    ax.set_title("Fig 1.  Query Latency Comparison (Avg / P95 / P99)")
-    ax.set_ylim(0, 1200)
+    ax.set_ylim(0, 1150)
 
     # Custom legend: shading encodes metric group
     from matplotlib.patches import Patch
@@ -147,8 +161,10 @@ def fig1_latency():
     ]
     color_handles = [Patch(facecolor=c, label=s.replace("\n", " "))
                      for s, c in zip(systems, colors)]
-    ax.legend(handles=leg_handles + color_handles, ncol=2,
-              loc="upper left", fontsize=9)
+    # Legend above the axes so it never hides a bar or its value label
+    ax.legend(handles=leg_handles + color_handles, ncol=4,
+              loc="lower center", bbox_to_anchor=(0.5, 1.01),
+              fontsize=9, frameon=False)
 
     fig.tight_layout()
     save("fig1_latency_comparison")
@@ -182,7 +198,6 @@ def fig2_memory():
                     fontsize=9, color="white", fontweight="bold")
 
     ax.set_ylabel("Peak Server Memory (GB)")
-    ax.set_title("Fig 2.  Server-Side Memory Consumption")
     ax.set_ylim(0, 13)
     ax.axhline(memory[0], linestyle="--", color=C["es"], alpha=0.4, linewidth=1)
     ax.text(4.4, memory[0] + 0.2, "ES baseline", fontsize=8, color=C["es"])
@@ -208,7 +223,6 @@ def fig3_network():
                 f"{val} KB", ha="center", va="bottom", fontsize=10, fontweight="bold")
 
     ax.set_ylabel("Avg Payload per Query (KB)")
-    ax.set_title("Fig 3.  Network Payload per Query (Client → Cloud)")
     ax.set_ylim(0, 50)
 
     ax.annotate("* Dense transmits\na float32 vector\n(privacy risk)", xy=(2, 5.2),
@@ -272,9 +286,10 @@ def fig4_accuracy():
         if col == 0:
             ax.set_ylabel("Score")
 
-    axes[-1].legend(loc="lower right", fontsize=9)
-    fig.suptitle("Fig 4.  Retrieval Accuracy by Dataset and System (top-10)",
-                 fontsize=13, fontweight="bold", y=1.01)
+    # One shared legend above the panels so no bars are covered
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, 0.98),
+               ncol=4, fontsize=10, frameon=False)
     fig.tight_layout()
     save("fig4_accuracy_per_dataset")
 
@@ -308,7 +323,6 @@ def fig5_leakage():
     ax.set_yticks(y)
     ax.set_yticklabels(systems)
     ax.set_xlabel("Token Reconstruction Probability (L)")
-    ax.set_title("Fig 5.  Privacy Leakage Probability Across Systems")
     ax.set_xlim(0, 1.05)
     ax.axvline(0.10, linestyle="--", color=C["pssi"], linewidth=1.2, alpha=0.7)
     ax.text(0.105, -0.7, "L = 0.10\nthreshold", fontsize=8, color=C["pssi"])
@@ -368,7 +382,6 @@ def fig6_eta_sweep():
     ax2.tick_params(axis="y", colors=C["red"])
     ax1.set_ylim(0.22, 0.52)
     ax2.set_ylim(0.00, 0.42)
-    ax1.set_title("Fig 6.  Privacy-Utility Tradeoff: Effect of Noise Parameter η")
     ax1.grid(True, alpha=0.4)
     ax2.grid(False)
 
@@ -404,27 +417,30 @@ def fig7_bloom_size():
     bars[1].set_linewidth(2.5)      # highlight default m=1024
     for bar, val in zip(bars, f1):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.002,
-                f"{val:.3f}", ha="center", va="bottom", fontsize=9)
+                f"{val:.3f}", ha="center", va="bottom", fontsize=9,
+                bbox=dict(boxstyle="square,pad=0.1", fc="white", ec="none"))
     ax.set_xticks(x); ax.set_xticklabels(x_lbl)
     ax.set_xlabel("Bloom filter size m (bits)")
     ax.set_ylabel("F1@10")
     ax.set_title("A.  Retrieval F1@10")
     ax.set_ylim(0.40, 0.52)
-    ax.axvline(1, linestyle=":", color="#888888", linewidth=1.2)
-    ax.text(1.1, 0.408, "default", fontsize=8, color="#888888")
+    ax.axvline(1, linestyle=":", color="#888888", linewidth=1.2, zorder=0)
+    ax.text(1, 0.512, "default", fontsize=8, color="#555555", ha="center")
 
     # Panel B: False positive rate vs m
     ax = axes[1]
     ax.plot(x, fpr, "o-", color=C["red"], linewidth=2.2, markersize=8)
     ax.set_yscale("log")
     for xi, val in zip(x, fpr):
-        ax.text(xi, val * 1.35, f"{val:g}%", ha="center", va="bottom", fontsize=9)
-    ax.axvline(1, linestyle=":", color="#888888", linewidth=1.2)
+        ax.text(xi, val * 1.35, f"{val:g}%", ha="center", va="bottom", fontsize=9,
+                bbox=dict(boxstyle="square,pad=0.1", fc="white", ec="none"))
+    ax.axvline(1, linestyle=":", color="#888888", linewidth=1.2, zorder=0)
     ax.set_xticks(x); ax.set_xticklabels(x_lbl)
     ax.set_xlabel("Bloom filter size m (bits)")
     ax.set_ylabel("False Positive Rate (%, log scale)")
     ax.set_title("B.  Bloom Filter False Positive Rate")
     ax.set_ylim(0.008, 30)
+    ax.set_xlim(-0.45, 3.45)
 
     # Panel C: Payload vs m (dual bar: payload + memory)
     ax   = axes[2]
@@ -440,10 +456,10 @@ def fig7_bloom_size():
     ax.set_title("C.  Payload & Memory Cost")
     lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.set_ylim(0, 42)
+    ax2.set_ylim(0, 7.2)
     ax.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=9)
 
-    fig.suptitle("Fig 7.  Ablation: Bloom Filter Size m", fontsize=13,
-                 fontweight="bold", y=1.01)
     fig.tight_layout()
     save("fig7_bloom_size_ablation")
 
@@ -484,7 +500,6 @@ def fig8_lambda():
 
     ax.set_xlabel("λ  (0 = semantic-only  →  1 = substring-only)")
     ax.set_ylabel("F1@10")
-    ax.set_title("Fig 8.  Ablation: Composite Weighting λ by Query Type")
     ax.set_ylim(0.34, 0.50)
     ax.set_xlim(-0.05, 1.05)
     ax.set_xticks(lam)
@@ -516,10 +531,8 @@ def fig9_scalability():
                      alpha=0.12, color=C["pssi"])
 
     for xi, (pv, ev) in enumerate(zip(pssi_lat, es_lat)):
-        ax1.text(xi, pv - 14, str(pv), ha="center", fontsize=9,
-                 color=C["pssi"], fontweight="bold")
-        ax1.text(xi, ev + 6,  str(ev), ha="center", fontsize=9,
-                 color=C["es"],   fontweight="bold")
+        _label(ax1, xi, pv, str(pv), C["pssi"], below=True)
+        _label(ax1, xi, ev, str(ev), C["es"],   below=False)
 
     ax1.set_xlabel("Corpus size (# documents)")
     ax1.set_ylabel("Avg query latency (ms)")
@@ -527,11 +540,10 @@ def fig9_scalability():
     ax1.legend(loc="upper left")
     ax1.set_ylim(0, 420)
 
-    # Trend annotation
-    ax1.annotate("Sub-linear growth\nfor PSSI",
-                 xy=("30K", 141), xytext=("10K", 290),
-                 fontsize=8.5, color=C["pssi"],
-                 arrowprops=dict(arrowstyle="->", color=C["pssi"], lw=1.1))
+    # Empirical log-log fits reported in the paper (linear-scan scoring;
+    # the low exponents reflect fixed per-query costs at this scale)
+    ax1.text(2.05, 60, "PSSI fit ≈ N$^{0.36}$", fontsize=9, color=C["pssi"])
+    ax1.text(0.35, 245, "ES fit ≈ N$^{0.30}$", fontsize=9, color=C["es"])
 
     # ── Panel B: Memory ─────────────────────────────────────────────────
     ax2.plot(labels, pssi_mem, "o-", color=C["pssi"], linewidth=2.5,
@@ -542,27 +554,27 @@ def fig9_scalability():
                      alpha=0.10, color=C["pssi"])
 
     for xi, (pv, ev) in enumerate(zip(pssi_mem, es_mem)):
-        ax2.text(xi, pv - 0.10, f"{pv:.2f}", ha="center", fontsize=9,
-                 color=C["pssi"], fontweight="bold")
-        ax2.text(xi, ev + 0.04, f"{ev:.2f}", ha="center", fontsize=9,
-                 color=C["es"],   fontweight="bold")
+        if xi == 0:   # 1K: values nearly coincide (PSSI 0.06 > ES 0.05)
+            _label(ax2, xi, pv, f"{pv:.2f}", C["pssi"], below=False, dx=16)
+            _label(ax2, xi, ev, f"{ev:.2f}", C["es"],   below=False, dx=16, dy=24)
+        else:
+            _label(ax2, xi, pv, f"{pv:.2f}", C["pssi"], below=True)
+            _label(ax2, xi, ev, f"{ev:.2f}", C["es"],   below=False)
 
     ax2.set_xlabel("Corpus size (# documents)")
     ax2.set_ylabel("Peak server memory (GB)")
     ax2.set_title("B.  Memory Consumption vs Corpus Size")
     ax2.legend(loc="upper left")
-    ax2.set_ylim(0, 3.2)
+    ax2.set_ylim(-0.05, 3.2)
 
     # Shaded saving zone
     xs = np.arange(4)
     ax2.fill_between(xs, pssi_mem, es_mem,
                      alpha=0.18, color=C["pssi"],
                      label="_nolegend_")
-    ax2.text(2.6, 1.0, "Memory\nsaved", fontsize=9, color=C["pssi"],
-             alpha=0.85, ha="center")
+    ax2.text(2.55, 1.62, "Memory\nsaved", fontsize=9, color=C["pssi"],
+             alpha=0.9, ha="center", va="center")
 
-    fig.suptitle("Fig 9.  Scalability: PSSI vs Elasticsearch on FiQA-2018 Subsets",
-                 fontsize=13, fontweight="bold", y=1.01)
     fig.tight_layout()
     save("fig9_scalability")
 
@@ -581,5 +593,4 @@ if __name__ == "__main__":
     fig7_bloom_size()
     fig8_lambda()
     fig9_scalability()
-    print(f"\nAll 9 figures saved to ./figures/")
-    print("Replace hardcoded values with your measured results before submission.")
+    print(f"\nAll 9 figures saved to ./{OUT_DIR}/")
