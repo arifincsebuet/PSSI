@@ -50,8 +50,10 @@ def main():
     print("     eps_0 across the swept range:")
     for eta in (0.02, 0.05, 0.10, 0.15, 0.20, 0.30):
         print(f"       eta={eta:<5} eps_0={epsilon0_ldp(eta):.2f}")
-    print(f"     conservative composed bound s*eps_0 at s=312: "
-          f"{composed_epsilon(312, 0.05):.0f} (paper 918)")
+    check("composed bound (m+b)*eps_0, m+b=1152",
+          composed_epsilon(1024 + 128, 0.05), 3392, 1.0)
+    check("per-n-gram bound 2k*eps_0, k=4",
+          composed_epsilon(2 * 4, 0.05), 23.6, 0.05)
 
     # ---- 2. Noise, occupancy, FPR ---------------------------------------
     print("\n--- 2. Bit-flip noise, occupancy and FPR (Section IV-D) ---")

@@ -63,8 +63,8 @@ def apply_bitflip_noise(active_indices, vector_size, eta=DEFAULT_ETA, rng=None):
         p' = p(1 - eta) + (1 - p)eta
     e.g. m=1024, p=0.283, eta=0.05  ->  p'=0.305, i.e. ~312 active bits.
     """
-    if not 0.0 <= eta < 0.5:
-        raise ValueError("eta must lie in [0, 0.5)")
+    if not 0.0 <= eta <= 0.5:
+        raise ValueError("eta must lie in [0, 0.5]")
     if eta == 0.0:
         return sorted(set(active_indices))
 
@@ -81,19 +81,22 @@ def epsilon0_ldp(eta=DEFAULT_ETA):
 
         eps_0 = ln((1 - eta) / eta)
 
-    eta=0.05 -> ln(19) ~= 2.944. eps_0 -> 0 as eta -> 0.5 (maximum privacy,
+    eta=0.05 -> ln(19) ~= 2.944. eps_0 = 0 at eta = 0.5 (maximum privacy,
     zero utility) and diverges as eta -> 0 (no privacy).
     """
-    if not 0.0 < eta < 0.5:
-        raise ValueError("eta must lie in (0, 0.5) for a finite epsilon_0")
+    if not 0.0 < eta <= 0.5:
+        raise ValueError("eta must lie in (0, 0.5] for a finite epsilon_0")
     return math.log((1.0 - eta) / eta)
 
 
 def composed_epsilon(num_bits, eta=DEFAULT_ETA):
-    """Conservative fully-composed bound s * eps_0 (Theorem 2(ii)).
+    """Conservative fully composed bound s * eps_0 over s released bits
+    (Theorem 2(ii)).
 
-    This is deliberately loose; see Remark 1 in the paper. Reported alongside
-    the per-bit figure rather than in place of it.
+    The stored active indices also reveal every inactive bit, so a document
+    releases all m + b bits: Corollary 3 uses s = m + b = 1,152, giving
+    ~3,392 at eta = 0.05. This is deliberately loose (see Remark 1) and is
+    reported alongside the per-bit figure rather than in place of it.
     """
     return num_bits * epsilon0_ldp(eta)
 
