@@ -2,8 +2,8 @@
 PSSI Experimental Results — Publication-Quality Figures
 ========================================================
 Generates the 9 plots used in Figs. 2-4 of the PSSI paper
-(IEEE BigData 2026, short paper). All values are the measured results
-reported in the paper (Table I and Section VI).
+(IEEE BigData 2026, short paper). All values are hard-coded here and are
+the ones reported in the paper (Table I and Section VI).
 
 Plots carry no "Fig N." titles: numbering and captions come from the paper.
 
@@ -187,15 +187,21 @@ def fig2_memory():
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.12,
                 f"{val:g} GB", ha="center", va="bottom", fontsize=10, fontweight="bold")
 
-    # Percentage labels relative to ES
-    for bar, val in zip(bars, memory):
-        if val != memory[0]:
+    # Lucene and ANCE report peak process memory (incl. JVM/native runtime),
+    # which is not comparable with the index-resident memory of ES, Plain BF
+    # and PSSI: hatch those bars and show percentages only for comparable ones.
+    peak_process = {1, 2}
+    for i, (bar, val) in enumerate(zip(bars, memory)):
+        if i in peak_process:
+            bar.set_hatch("///")
+            bar.set_alpha(0.55)
+        elif i > 0:
             pct = (val - memory[0]) / memory[0] * 100
-            label = f"{pct:+.0f}%"
-            color = C["pssi"] if pct < -50 else C["red"] if pct > 0 else C["gray"]
             ax.text(bar.get_x() + bar.get_width() / 2, val / 2,
-                    label, ha="center", va="center",
+                    f"{pct:+.0f}%", ha="center", va="center",
                     fontsize=9, color="white", fontweight="bold")
+    ax.text(1.5, 12.3, "hatched: peak process memory, not comparable",
+            ha="center", fontsize=8.5, color="#555555", style="italic")
 
     ax.set_ylabel("Peak Server Memory (GB)")
     ax.set_ylim(0, 13)
